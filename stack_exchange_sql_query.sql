@@ -1,7 +1,7 @@
-SELECT TOP 50000 post.*, postTag.Tag
+SELECT TOP 8000 post.*, postTag.Tag
 FROM 
 (
-  SELECT Id, PostTypeId, Body, Title, Score, CreationDate
+  SELECT Id, Body, Title, Score, CreationDate
   FROM Posts
   WHERE PostTypeId = 1
     AND CreationDate BETWEEN '2017-01-01' AND '2017-12-31'
@@ -16,4 +16,4 @@ INNER JOIN
   GROUP BY ptag.PostID, tag.TagName
 ) AS postTag
 ON post.Id = postTag.PostId
-ORDER BY post.Score;
+ORDER BY post.Score DESC
