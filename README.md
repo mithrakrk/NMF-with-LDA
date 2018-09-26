@@ -7,6 +7,6 @@
 
 <h3>Things to Kepp in mind:</h3>
 <ol>
-  <li>Since Stack Exchange's Data Explorer has a limit for downloads set at 50,000 rows, all parts of code will adhere to that</li>
+  <li>Since Stack Exchange's Data Explorer API in python has a limit for downloads set at 8,000 rows, all parts of code will adhere to that</li>
   <li>... </li>
 </ol> 
