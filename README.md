@@ -7,6 +7,7 @@
 
 <h3>Things to Kepp in mind:</h3>
 <ol>
-  <li>Since Stack Exchange's Data Explorer API in python has a limit for downloads set at 8,000 rows, all parts of code will adhere to that</li>
-  <li>... </li>
+  <li> Since Stack Exchange's Data Explorer API in python has a limit for downloads set at 8,000 rows, all parts of code will adhere to that</li>
+  <li> I'm using only <a href="http://doi.org/10.1007/978-3-642-13657-3_43">"Arun's Metric"</a> to decide on how many topics will give most accurate Modeling</li>
+  <li>...</li>
 </ol> 
