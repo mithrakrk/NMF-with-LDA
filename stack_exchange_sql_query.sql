@@ -1,7 +1,7 @@
-SELECT TOP 8000 post.*, postTag.Tag
+SELECT TOP 8000 post.*
 FROM 
 (
-  SELECT Id, Body, Title, Score, CreationDate
+  SELECT Id, Body, Title, Score, CreationDate, Tags
   FROM Posts
   WHERE PostTypeId = 1
     AND CreationDate BETWEEN '2017-01-01' AND '2017-12-31'
@@ -12,7 +12,7 @@ INNER JOIN
   FROM PostTags AS ptag
   INNER JOIN Tags as tag
     ON tag.Id = ptag.TagId
-    AND tag.TagName = 'python'
+    AND tag.TagName = 'apache'
   GROUP BY ptag.PostID, tag.TagName
 ) AS postTag
 ON post.Id = postTag.PostId
