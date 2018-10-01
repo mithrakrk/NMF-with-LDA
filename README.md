@@ -16,6 +16,7 @@
       <li> https://www.analyticsvidhya.com/blog/2018/02/the-different-methods-deal-text-data-predictive-python/</li>
       <li> ...</li>
       <li> ...</li>
+    </ul>
   </li>
   <li>...</li>
 </ol> 
