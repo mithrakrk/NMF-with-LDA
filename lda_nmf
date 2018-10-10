@@ -1,0 +1,249 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Sep 21 02:04:11 2018
+@author: Mithra
+
+Had huge help from Adrien Guille and Pavel Soriano's code from github  for the 
+LDA part. Link: https://github.com/AdrienGuille/TOM 
+
+I tried not to directly lift the code, since this is mainly for my learning.
+I did, however, use it for structuring the LDA part of the project.
+"""
+
+import numpy
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from textblob import Word
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from sklearn.feature_extraction.text import CountVectorizer
+import scipy.stats as stats
+import re
+import itertools
+#nltk.download('wordnet')
+#nltk.download('punkt')
+#nltk.download('stopwords')
+
+'''
+* Initializing Variables
+* Loading the data, 
+* Collating input data
+* Saving a copy
+'''
+path = 'C:\\Users\\admin\\Desktop\\PythonPrep\\LDA with NMF\\'
+tag_names=['python','apache']
+iterations=10
+df=pd.DataFrame()
+sort=True
+
+for tag in tag_names:
+    data = pd.read_excel(path+tag+".xlsx", sheet_name=None)
+    df=df.append(data['QueryResults'], ignore_index=True,sort=sort)
+
+df.to_csv(path+'original_file.csv')
+df['Body'].to_csv(path+'raw_corpus.csv')
+
+working_file=df
+text_file = working_file.loc[:,['Id','Body']]
+
+'''
+This marks the start of the Data Cleaning
+Cleaning the Datais an important part of any work with data
+Normal Text Cleaning includes:
+    Code Removal
+    Removal of HTML tags
+    Number Removal
+    Punctuation Removal
+    Converting all characters to one case(preferably lower case)
+    Stop Word removal
+    Whitespace Treatment
+    Tokenizing words
+    Lemmatizing/Stemming words    
+'''
+
+#Setting Stopwords 
+t123=pd.read_csv(path+"stop.csv")
+stop_words = stopwords.words('English')
+stop_words.extend(t123['i'])
+stop=[]
+filtered_doc=[]
+for t in text_file['Body']:
+    r=re.sub('<code>[^>]+</code>', '', t) # removing codes from body
+    r=re.sub('<[^>]+>','',r) #removing everything within the '<' and '>' 
+    r=re.sub('\\n',' ',r) # replacing '\n' with white spaces
+    #r=re.sub('\.',' ',r) # removing full stops
+    r=re.sub('\'','',r) # Removing ' from 
+    #r=re.sub('\?','',r)
+    r=re.sub('[\\\:\;\@\#\%\-\_\$\!\^\~\`\&\<\>\]\[\{\},?.+=*\/|\'\"()]+','',r)
+    r=re.sub(r'[0-9]+','',r)
+    r=re.sub('[ ]+',' ',r) # removing extra whitespaces
+    r= r.lower()
+    word_tokens = word_tokenize(r)
+    # Removing Stopwords
+    filtered_doc.append(" ".join([w for w in word_tokens if not w in stop_words]))
+    #check for more stop words
+    for w in word_tokens:
+        if not w in stop_words:
+            if len(w)<=2:
+                if not w in stop:
+                    stop.append(w)
+text_file['clean']=filtered_doc
+#pd.DataFrame(stop_words).to_csv(path+'stop.csv')
+
+'''
+# Lemmatizing words
+Lemmatizing words returns them to their root words, and is often preferred over
+Stemming
+'''
+text_file['clean'] = text_file['clean'].apply(lambda x: " ".join([Word(word).lemmatize() for word in x.split()]))
+
+'''
+TF-IDF formation : Term Frequency - Inverse Document Function:
+    TF = (No of times term T appears in a row) / (no of terms in that row)
+    IDF = log(N/n)
+        where, 
+            N is the total no of rows and 
+            n is the no of rows in which the word was present.
+    TF-IDF = TF*IDF
+'''
+#tfidf=TfidfVectorizer(ngram_range=(1,1),max_features=2000,stop_words=stop_words)
+#train_vect = tfidf.fit_transform(text_file['clean'])
+
+tf= CountVectorizer(ngram_range=(1,1), stop_words=stop_words)
+train_tf = tf.fit_transform(text_file['clean'])
+
+'''
+Getting the weights for each document in the tf-idf matrix
+Also, setting the size(lenth of corpus and vocab size)
+'''
+vocab = tf.get_feature_names()
+vocabulary = dict([(i, s) for i, s in enumerate(vocab)])
+vocabulary_size = len(vocabulary)
+corpus_size = text_file.count(0)[0]
+weights = [[0.0] * vocabulary_size]*corpus_size
+for docid in range(corpus_size):
+    vector = train_tf[docid]
+    cx = vector.tocoo()    
+    for word_id, weight in itertools.zip_longest(cx.col, cx.data):
+       weights[docid][word_id] = weight
+
+'''
+# To get Number of topics to run, Using Arun's Metric
+# http://doi.org/10.1007/978-3-642-13657-3_43 - Research Paper
+# Arun's metric basically uses the mean of Symmetric KL Divergence
+# https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence 
+    : The Wiki for KL Divergence. Seriously, it's well explained here.
+# To symmetrize the KL Divergence, we are computing 
+    KL-divergence(p,q)+ KL-divergence(q,p)
+# Most importantly, we take the Number of Topic Models for which Arun's metric 
+    is minimum
+'''
+import sys
+sys.path.append(path)
+from topic_model_lda import infer_topics
+l = np.array([sum(weights[doc_id]) for doc_id in range(corpus_size)])
+norm = np.linalg.norm(l)
+kl_matrix=[]
+for iteration in range(iterations):
+    kl_list = []
+    for i in range(5,40):
+        print('iter is ' +str(iteration)+' and i is ' +str(i))
+        twm,dtm = infer_topics(train_tf, vocabulary_size, corpus_size, i)
+        c_m1 = np.linalg.svd(twm.todense(), compute_uv=False)
+        c_m2 = l.dot(dtm.todense())
+        c_m2 += 0.0001
+        c_m2 /= norm
+        kl_list.append(numpy.sum([stats.entropy(c_m1.tolist(), c_m2.tolist()[0]), stats.entropy(c_m2.tolist()[0], c_m1.tolist())]))
+    kl_matrix.append(kl_list)
+ouput = np.array(kl_matrix)
+aruns_metric=ouput.mean(axis=0)
+
+pd.DataFrame(ouput).to_csv(path+'kl_matrix.csv')
+pd.DataFrame(aruns_metric).to_csv(path+'aruns_metric.csv')
+
+plt.clf()
+plt.plot( aruns_metric)
+plt.title('Arun et al. metric')
+plt.xlabel('number of topics')
+plt.ylabel('symmetric KL divergence')
+
+topic_num=20
+
+twm=[]
+dtm=[]
+
+twm,dtm,lda_model =  infer_topics(train_tf,  vocabulary_size, corpus_size, topic_num, True)
+
+dtm1=[]
+dtopic=[]
+
+for d in range(corpus_size):
+    dtm1.append(list(dtm[d].toarray()[0]))
+    dtopic.append(max(list(dtm[0].toarray()[0])))
+text_file['topic']=dtopic
+
+twm1=[]
+tword=[]
+for tw in range(topic_num):
+    twm1.append(list(twm[tw].toarray()[0]))
+twm1=pd.DataFrame(twm1)
+twm2=twm1.transpose()
+tword=twm2.idxmax(axis=1)
+
+'''
+Getting top words for each topic
+'''
+topic_list=[]
+for topic_l in range(topic_num):
+    top_list=[]
+    for top in twm2[topic_l].nlargest(n=20, keep='first').index:
+        top_list.append(vocabulary[top])
+    topic_list.append(top_list)
+topic_list=pd.DataFrame(topic_list).transpose()
+
+
+pd.DataFrame(dtm1).to_csv(path+'dtm.csv')
+pd.DataFrame(twm1).to_csv(path+'twm.csv')
+pd.DataFrame(dtopic).to_csv(path+'document_topic.csv')
+pd.DataFrame(tword).to_csv(path+'word_topic.csv')
+
+apache_output=pd.read_excel(path+"apache_output.xlsx", sheet_name=None)
+apache_output=apache_output['QueryResults']
+filtered_apache=[]
+for t in apache_output['Body']:
+    r=re.sub('<code>[^>]+</code>', '', t) # removing codes from body
+    r=re.sub('<[^>]+>','',r) #removing everything within the '<' and '>' 
+    r=re.sub('\\n',' ',r) # replacing '\n' with white spaces
+    #r=re.sub('\.',' ',r) # removing full stops
+    r=re.sub('\'','',r) # Removing ' from 
+    #r=re.sub('\?','',r)
+    r=re.sub('[\\\:\;\@\#\%\-\_\$\!\^\~\`\&\<\>\]\[\{\},?.+=*\/|\'\"()]+','',r)
+    r=re.sub(r'[0-9]+','',r) 
+    r=re.sub('[ ]+',' ',r) # removing extra whitespaces
+    r= r.lower()
+    word_tokens = word_tokenize(r)
+    # Removing Stopwords
+    filtered_apache.append(" ".join([w for w in word_tokens if not w in stop_words]))
+apache_output['clean']=filtered_apache
+tf_apache= CountVectorizer(ngram_range=(1,1), stop_words=stop_words)
+output_tf=tf.fit_transform(apache_output['clean'])
+doc_topic_test = lda_model.transform(output_tf)
+
+max_list=[]
+for doc in doc_topic_test:
+    max_list.append(np.where(doc==(max(doc)))[0][0])
+apache_output['topic']=max_list
+
+
+
+'''
+Writing the new documents to most probable topic based on the model trained before
+'''
+
+for j in range(topic_num):
+    pd.DataFrame(apache_output[apache_output['topic']==j][['clean','topic']]).to_csv(path+'topic_words'+str(j)+'.csv')
+
+'''
+ABCDEFGHIJKLMNOPQRSTUVWXYZ
+'''
